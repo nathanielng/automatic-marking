@@ -265,86 +265,155 @@ def initialize_session_state():
         st.session_state.marking_complete = False
 
 
+def load_essays_from_folder(folder_path: str = "essays") -> Dict[str, str]:
+    """Load all essay files from the essays folder"""
+    essays = {}
+    
+    if not os.path.exists(folder_path):
+        logger.warning(f"Essays folder not found: {folder_path}")
+        return essays
+    
+    txt_files = Path(folder_path).glob("*.txt")
+    for file_path in txt_files:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                essays[file_path.name] = content
+                logger.info(f"Loaded essay: {file_path.name}")
+        except Exception as e:
+            logger.error(f"Error loading essay {file_path.name}: {str(e)}")
+    
+    return essays
+
+
+def load_rubrics_from_folder(folder_path: str = "rubric") -> Dict[str, str]:
+    """Load all rubric files from the rubric folder"""
+    rubrics = {}
+    
+    if not os.path.exists(folder_path):
+        logger.warning(f"Rubric folder not found: {folder_path}")
+        return rubrics
+    
+    md_files = Path(folder_path).glob("*.md")
+    for file_path in md_files:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                rubrics[file_path.name] = content
+                logger.info(f"Loaded rubric: {file_path.name}")
+        except Exception as e:
+            logger.error(f"Error loading rubric {file_path.name}: {str(e)}")
+    
+    return rubrics
+
+
+def load_feedback_guidance(file_path: str = "feedback_guidance.md") -> str:
+    """Load feedback guidance from file"""
+    if not os.path.exists(file_path):
+        logger.warning(f"Feedback guidance file not found: {file_path}")
+        return ""
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            logger.info(f"Loaded feedback guidance from: {file_path}")
+            return content
+    except Exception as e:
+        logger.error(f"Error loading feedback guidance: {str(e)}")
+        return ""
+
+
 def tab_upload_and_marking():
-    """Tab 1: Upload files and perform automatic marking"""
-    st.header("📤 Upload Files & Run Automatic Marking")
+    """Tab 1: Load files from folders and perform automatic marking"""
+    st.header("📂 Load Files & Run Automatic Marking")
+    
+    # Instructions for folder structure
+    with st.expander("ℹ️ Folder Structure Guide", expanded=False):
+        st.markdown("""
+        This application automatically loads files from the following folders:
+        
+        - **`essays/`** - Place all student essay files (.txt) here
+        - **`rubric/`** - Place all rubric files (.md) here  
+        - **`feedback_guidance.md`** - Place this file in the root directory
+        
+        Click the "Load/Refresh Files" button below to load or reload files from these folders.
+        """)
+    
+    # Auto-load files button
+    col_load1, col_load2, col_load3 = st.columns([1, 2, 1])
+    with col_load2:
+        if st.button("🔄 Load/Refresh Files from Folders", type="secondary", use_container_width=True):
+            # Load essays from essays/ folder
+            st.session_state.essay_files = load_essays_from_folder("essays")
+            
+            # Load rubrics from rubric/ folder
+            st.session_state.rubric_files = load_rubrics_from_folder("rubric")
+            
+            # Load feedback guidance
+            guidance = load_feedback_guidance("feedback_guidance.md")
+            if guidance:
+                st.session_state.feedback_guidance = guidance
+            
+            if st.session_state.essay_files or st.session_state.rubric_files or st.session_state.feedback_guidance:
+                st.success("✓ Files loaded successfully!")
+            else:
+                st.warning("⚠️ No files found. Please check that essays/ and rubric/ folders exist with files.")
+    
+    st.divider()
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("Upload Student Essays")
-        essay_uploads = st.file_uploader(
-            "Upload student essay files (.txt)",
-            type=['txt'],
-            accept_multiple_files=True,
-            key="essay_uploader"
-        )
+        st.subheader("📄 Student Essays")
         
-        if essay_uploads:
-            for uploaded_file in essay_uploads:
-                if uploaded_file.name not in st.session_state.essay_files:
-                    content = uploaded_file.read().decode('utf-8')
-                    st.session_state.essay_files[uploaded_file.name] = content
-                    logging.info(f"Uploaded essay: {uploaded_file.name}")
-            
-            st.success(f"✓ {len(st.session_state.essay_files)} essay(s) uploaded")
+        if not st.session_state.essay_files:
+            st.info("ℹ️ No essays loaded. Click 'Load/Refresh Files' to load from `essays/` folder.")
+            st.markdown("**Expected:** `essays/*.txt`")
+        else:
+            st.success(f"✓ {len(st.session_state.essay_files)} essay(s) loaded from `essays/` folder")
             
             # Preview selected essay
-            if st.session_state.essay_files:
-                selected_essay = st.selectbox(
-                    "Select essay to preview:",
-                    options=list(st.session_state.essay_files.keys()),
-                    key="essay_preview_select"
+            selected_essay = st.selectbox(
+                "Select essay to preview:",
+                options=list(st.session_state.essay_files.keys()),
+                key="essay_preview_select"
+            )
+            with st.expander("Preview Essay", expanded=False):
+                st.text_area(
+                    "Essay content:",
+                    value=st.session_state.essay_files[selected_essay],
+                    height=300,
+                    key="essay_preview_area",
+                    disabled=True
                 )
-                with st.expander("Preview Essay", expanded=False):
-                    st.text_area(
-                        "Essay content:",
-                        value=st.session_state.essay_files[selected_essay],
-                        height=300,
-                        key="essay_preview_area"
-                    )
     
     with col2:
-        st.subheader("Upload Rubric")
-        rubric_uploads = st.file_uploader(
-            "Upload rubric files (.md)",
-            type=['md'],
-            accept_multiple_files=True,
-            key="rubric_uploader"
-        )
+        st.subheader("📋 Rubrics")
         
-        if rubric_uploads:
-            for uploaded_file in rubric_uploads:
-                if uploaded_file.name not in st.session_state.rubric_files:
-                    content = uploaded_file.read().decode('utf-8')
-                    st.session_state.rubric_files[uploaded_file.name] = content
-                    logging.info(f"Uploaded rubric: {uploaded_file.name}")
-            
-            st.success(f"✓ {len(st.session_state.rubric_files)} rubric(s) uploaded")
+        if not st.session_state.rubric_files:
+            st.info("ℹ️ No rubrics loaded. Click 'Load/Refresh Files' to load from `rubric/` folder.")
+            st.markdown("**Expected:** `rubric/*.md`")
+        else:
+            st.success(f"✓ {len(st.session_state.rubric_files)} rubric(s) loaded from `rubric/` folder")
             
             # Preview selected rubric
-            if st.session_state.rubric_files:
-                selected_rubric = st.selectbox(
-                    "Select rubric to preview:",
-                    options=list(st.session_state.rubric_files.keys()),
-                    key="rubric_preview_select"
-                )
-                with st.expander("Preview Rubric", expanded=False):
-                    st.markdown(st.session_state.rubric_files[selected_rubric])
+            selected_rubric = st.selectbox(
+                "Select rubric to preview:",
+                options=list(st.session_state.rubric_files.keys()),
+                key="rubric_preview_select"
+            )
+            with st.expander("Preview Rubric", expanded=False):
+                st.markdown(st.session_state.rubric_files[selected_rubric])
     
     st.divider()
     
-    # Upload feedback guidance
-    st.subheader("Upload Feedback Guidance")
-    guidance_upload = st.file_uploader(
-        "Upload feedback guidance file (.md)",
-        type=['md'],
-        key="guidance_uploader"
-    )
-    
-    if guidance_upload:
-        st.session_state.feedback_guidance = guidance_upload.read().decode('utf-8')
-        st.success("✓ Feedback guidance uploaded")
+    # Feedback guidance status
+    st.subheader("📝 Feedback Guidance")
+    if not st.session_state.feedback_guidance:
+        st.warning("⚠️ No feedback guidance loaded. Please ensure `feedback_guidance.md` exists in the root folder.")
+        st.markdown("**Expected:** `feedback_guidance.md` in root directory")
+    else:
+        st.success("✓ Feedback guidance loaded from `feedback_guidance.md`")
         with st.expander("Preview Guidance", expanded=False):
             st.markdown(st.session_state.feedback_guidance)
     
@@ -432,7 +501,7 @@ def tab_upload_and_marking():
             st.balloons()
     
     if not can_mark:
-        st.info("ℹ️ Please upload essays, a rubric, and feedback guidance to start marking.")
+        st.info("ℹ️ Please load essays, rubric, and feedback guidance using the button above to start marking.")
 
 
 def tab_individual_feedback():
@@ -516,7 +585,7 @@ def main():
     
     # Create tabs
     tab1, tab2, tab3 = st.tabs([
-        "📤 Upload & Marking",
+        "📂 Load & Marking",
         "📋 Individual Feedback",
         "📊 Class Feedback"
     ])
@@ -537,25 +606,34 @@ def main():
         This application provides automated essay marking using AI.
         
         **Features:**
-        - Upload multiple student essays
-        - Use custom rubrics
+        - Auto-load essays from `essays/` folder
+        - Auto-load rubrics from `rubric/` folder
         - Generate detailed feedback
         - View individual student feedback
         - Get class-level insights
         
+        **Folder Structure:**
+        ```
+        essays/         # Student essays (.txt)
+        rubric/         # Rubrics (.md)
+        feedback_guidance.md  # Root folder
+        outputs/        # Generated feedback
+        ```
+        
         **How to use:**
-        1. Upload student essays (.txt)
-        2. Upload rubric (.md)
-        3. Upload feedback guidance (.md)
-        4. Click "Start Automatic Marking"
-        5. View results in other tabs
+        1. Place essays in `essays/` folder
+        2. Place rubric in `rubric/` folder
+        3. Ensure `feedback_guidance.md` exists
+        4. Click "Load/Refresh Files"
+        5. Click "Start Automatic Marking"
+        6. View results in other tabs
         """)
         
         st.divider()
         
         st.subheader("📊 Status")
-        st.write(f"Essays uploaded: **{len(st.session_state.essay_files)}**")
-        st.write(f"Rubrics uploaded: **{len(st.session_state.rubric_files)}**")
+        st.write(f"Essays loaded: **{len(st.session_state.essay_files)}**")
+        st.write(f"Rubrics loaded: **{len(st.session_state.rubric_files)}**")
         st.write(f"Feedback generated: **{len(st.session_state.generated_feedbacks)}**")
         
         if st.session_state.marking_complete:
