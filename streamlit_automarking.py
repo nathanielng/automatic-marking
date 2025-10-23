@@ -59,8 +59,8 @@ bedrock_runtime = boto3.client(
 )
 
 
-def invoke_claude_v4_sonnet(prompt, **kwargs):
-    """Invoke Claude model with a simple prompt"""
+def invoke_claude_sonnet(prompt, **kwargs):
+    """Invoke Claude Sonnet model with a simple prompt"""
     messages = {
         "role": "user",
         "content": [
@@ -162,8 +162,8 @@ Follow the structure and tone guidelines specified in the feedback guidance.
 
 Provide specific band levels, justifications, and actionable recommendations."""
 
-    logging.info(f"Generating feedback for essay: {essay_name}")
-    feedback = invoke_claude_v4_sonnet(prompt, max_tokens=3000)
+    logger.info(f"Generating feedback for essay: {essay_name}")
+    feedback = invoke_claude_sonnet(prompt, max_tokens=3000)
     return feedback
 
 
@@ -213,8 +213,8 @@ Based on the rubric and the individual student feedbacks provided above, generat
 
 Format the response in clear Markdown with appropriate headings and bullet points."""
 
-    logging.info("Generating class overall feedback")
-    class_feedback = invoke_claude_v4_sonnet(prompt, max_tokens=4000)
+    logger.info("Generating class overall feedback")
+    class_feedback = invoke_claude_sonnet(prompt, max_tokens=4000)
     return class_feedback
 
 
@@ -228,7 +228,7 @@ def save_feedback_file(essay_name: str, feedback: str, output_dir: str = "output
     with open(feedback_path, 'w', encoding='utf-8') as f:
         f.write(feedback)
     
-    logging.info(f"Saved feedback to: {feedback_path}")
+    logger.info(f"Saved feedback to: {feedback_path}")
     return feedback_path
 
 
@@ -240,7 +240,7 @@ def save_class_feedback(class_feedback: str, output_dir: str = "outputs") -> str
     with open(class_feedback_path, 'w', encoding='utf-8') as f:
         f.write(class_feedback)
     
-    logging.info(f"Saved class feedback to: {class_feedback_path}")
+    logger.info(f"Saved class feedback to: {class_feedback_path}")
     return class_feedback_path
 
 
@@ -351,6 +351,7 @@ def tab_upload_and_marking():
     st.divider()
     
     # Select which rubric to use for marking
+    selected_rubric_for_marking = None  # Initialize to avoid scope issues
     if st.session_state.rubric_files:
         selected_rubric_for_marking = st.selectbox(
             "Select rubric for marking:",
@@ -374,6 +375,11 @@ def tab_upload_and_marking():
             st.session_state.marking_complete = False
             st.session_state.generated_feedbacks = []
             
+            # Safety check: ensure rubric is selected
+            if not selected_rubric_for_marking:
+                st.error("⚠️ Please select a rubric for marking.")
+                return
+                
             rubric_text = st.session_state.rubric_files[selected_rubric_for_marking]
             
             progress_bar = st.progress(0)
@@ -403,7 +409,7 @@ def tab_upload_and_marking():
                     
                 except Exception as e:
                     st.error(f"Error processing {essay_name}: {str(e)}")
-                    logging.error(f"Error processing {essay_name}: {str(e)}")
+                    logger.error(f"Error processing {essay_name}: {str(e)}")
                 
                 progress_bar.progress((idx + 1) / total_essays)
             
@@ -418,7 +424,7 @@ def tab_upload_and_marking():
                 save_class_feedback(class_feedback)
             except Exception as e:
                 st.error(f"Error generating class feedback: {str(e)}")
-                logging.error(f"Error generating class feedback: {str(e)}")
+                logger.error(f"Error generating class feedback: {str(e)}")
             
             status_text.text("✓ Marking complete!")
             st.session_state.marking_complete = True
